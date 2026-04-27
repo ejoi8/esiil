@@ -67,17 +67,17 @@
                         <h1 class="font-display text-2xl font-semibold text-text sm:text-3xl">{{ $heading }}</h1>
                     </div>
 
-                    <a
-                        href="{{ url('/auth') }}"
-                        class="inline-flex w-fit items-center justify-center rounded-full border border-text/15 bg-surface/70 px-4 py-2 text-sm font-semibold text-text shadow-sm shadow-text/5 transition hover:border-primary/40 hover:text-primary focus:outline-none focus:ring-4 focus:ring-primary/15"
-                    >
-                        Auth Panel
-                    </a>
                 </header>
 
                 <main class="min-w-0 flex-1 py-8 lg:py-10">
                     {{ $slot }}
                 </main>
+
+                <footer class="border-t border-text/10 pt-6 text-center">
+                    <p class="text-xs font-semibold uppercase tracking-[0.24em] text-text/55 sm:text-sm">
+                        ICT PUSPAINTA @ 2026
+                    </p>
+                </footer>
             </div>
         </div>
     </body>

@@ -6,10 +6,10 @@ use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Models\CertificateTemplate;
 use App\Models\Registration;
+use Dompdf\Dompdf;
+use Dompdf\Options;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
-use RuntimeException;
-use Symfony\Component\Process\Exception\ProcessFailedException;
-use Symfony\Component\Process\Process;
 
 class PdfmeCertificateRenderer
 {
@@ -236,33 +236,257 @@ class PdfmeCertificateRenderer
      */
     protected function generatePdf(array $template, array $inputs): string
     {
-        $payload = json_encode([
-            'template' => $this->fontRegistry->normalizeTemplate($template),
-            'inputs' => $inputs,
-            'fonts' => $this->fontRegistry->forGenerator(),
-        ], JSON_THROW_ON_ERROR);
+        $template = $this->fontRegistry->normalizeTemplate($template);
+        $pageSize = $this->dompdfPageSize($template);
 
-        $process = new Process([
-            (string) config('certificates.pdfme.node_binary', 'node'),
-            (string) config('certificates.pdfme.generator_script', resource_path('js/pdfme-generate-certificate.mjs')),
-        ], base_path());
+        $html = view('certificates.pdfme-dompdf', [
+            'fields' => $this->dompdfFields($template, $inputs),
+            'fonts' => $this->dompdfFonts(),
+            'pageSize' => $pageSize,
+        ])->render();
 
-        $process->setInput($payload);
-        $process->run();
+        $dompdf = new Dompdf($this->dompdfOptions());
+        $dompdf->setPaper([0, 0, $this->millimetersToPoints($pageSize['width']), $this->millimetersToPoints($pageSize['height'])]);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->render();
 
-        if (! $process->isSuccessful()) {
-            throw new ProcessFailedException($process);
+        return $dompdf->output();
+    }
+
+    protected function dompdfOptions(): Options
+    {
+        $cachePath = storage_path('framework/cache/dompdf');
+
+        File::ensureDirectoryExists($cachePath);
+
+        $options = new Options;
+        $options->setChroot([base_path(), public_path(), storage_path()]);
+        $options->setDefaultFont('DejaVu Serif');
+        $options->setFontCache($cachePath);
+        $options->setFontDir($cachePath);
+        $options->setIsHtml5ParserEnabled(true);
+        $options->setIsRemoteEnabled(false);
+        $options->setTempDir($cachePath);
+
+        return $options;
+    }
+
+    /**
+     * @param  array<string, mixed>  $template
+     * @return array{width:float,height:float}
+     */
+    protected function dompdfPageSize(array $template): array
+    {
+        $basePdf = is_array($template['basePdf'] ?? null) ? $template['basePdf'] : [];
+        $width = (float) ($basePdf['width'] ?? 210);
+        $height = (float) ($basePdf['height'] ?? 297);
+
+        return [
+            'width' => $width > 0 ? $width : 210.0,
+            'height' => $height > 0 ? $height : 297.0,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $template
+     * @param  array<string, string>  $inputs
+     * @return array<int, array{type:string, content:string, style:string, contentStyle?:string}>
+     */
+    protected function dompdfFields(array $template, array $inputs): array
+    {
+        $fields = [];
+        $page = $template['schemas'][0] ?? [];
+
+        if (! is_array($page)) {
+            return $fields;
         }
 
-        /** @var array{pdf?: string} $result */
-        $result = json_decode($process->getOutput(), true, 512, JSON_THROW_ON_ERROR);
-        $pdf = base64_decode((string) ($result['pdf'] ?? ''), true);
+        foreach ($page as $field) {
+            if (! is_array($field)) {
+                continue;
+            }
 
-        if ($pdf === false) {
-            throw new RuntimeException('Unable to decode the generated certificate PDF.');
+            $type = (string) ($field['type'] ?? 'text');
+
+            if (! in_array($type, ['image', 'text'], true)) {
+                continue;
+            }
+
+            $name = (string) ($field['name'] ?? '');
+            $content = (string) ($inputs[$name] ?? $field['content'] ?? '');
+
+            if ($content === '') {
+                continue;
+            }
+
+            if ($type === 'image') {
+                $fields[] = [
+                    'type' => $type,
+                    'content' => $content,
+                    'style' => $this->dompdfImageStyle($field),
+                ];
+
+                continue;
+            }
+
+            $fields[] = [
+                'type' => $type,
+                'content' => $content,
+                'style' => $this->dompdfTextContainerStyle($field),
+                'contentStyle' => $this->dompdfTextContentStyle($field),
+            ];
         }
 
-        return $pdf;
+        return $fields;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function dompdfFonts(): array
+    {
+        $fonts = [];
+
+        foreach ($this->fontRegistry->definitions() as $name => $definition) {
+            if (! File::exists($definition['path'])) {
+                continue;
+            }
+
+            $fonts[$name] = str_replace('\\', '/', $definition['path']);
+        }
+
+        return $fonts;
+    }
+
+    /**
+     * @param  array<string, mixed>  $field
+     */
+    protected function dompdfFieldBaseStyles(array $field): array
+    {
+        $position = is_array($field['position'] ?? null) ? $field['position'] : [];
+        $styles = [
+            'position:absolute',
+            'box-sizing:border-box',
+            'left:'.$this->cssMillimeters($position['x'] ?? 0),
+            'top:'.$this->cssMillimeters($position['y'] ?? 0),
+            'width:'.$this->cssMillimeters($field['width'] ?? 0),
+            'height:'.$this->cssMillimeters($field['height'] ?? 0),
+        ];
+
+        $rotate = (float) ($field['rotate'] ?? 0);
+
+        if ($rotate !== 0.0) {
+            $styles[] = 'transform:rotate('.$rotate.'deg)';
+            $styles[] = 'transform-origin:top left';
+        }
+
+        $opacity = (float) ($field['opacity'] ?? 1);
+
+        if ($opacity >= 0 && $opacity < 1) {
+            $styles[] = 'opacity:'.$opacity;
+        }
+
+        return $styles;
+    }
+
+    /**
+     * @param  array<string, mixed>  $field
+     */
+    protected function dompdfImageStyle(array $field): string
+    {
+        $styles = $this->dompdfFieldBaseStyles($field);
+        $styles[] = 'overflow:hidden';
+        $styles[] = 'object-fit:contain';
+
+        return implode(';', $styles).';';
+    }
+
+    /**
+     * @param  array<string, mixed>  $field
+     */
+    protected function dompdfTextContainerStyle(array $field): string
+    {
+        $styles = $this->dompdfFieldBaseStyles($field);
+        $styles[] = 'display:table';
+        $styles[] = 'overflow:visible';
+
+        if ($backgroundColor = $this->cssColor($field['backgroundColor'] ?? null)) {
+            $styles[] = 'background-color:'.$backgroundColor;
+        }
+
+        return implode(';', $styles).';';
+    }
+
+    /**
+     * @param  array<string, mixed>  $field
+     */
+    protected function dompdfTextContentStyle(array $field): string
+    {
+        $styles = [
+            'display:table-cell',
+            'vertical-align:'.$this->cssVerticalAlignment((string) ($field['verticalAlignment'] ?? 'top')),
+            'text-align:'.$this->cssTextAlignment((string) ($field['alignment'] ?? 'left')),
+            'white-space:pre-wrap',
+            'font-family:"'.str_replace('"', '', (string) ($field['fontName'] ?? PdfmeFontRegistry::BODY_FONT)).'", "DejaVu Serif", serif',
+            'font-size:'.((float) ($field['fontSize'] ?? 12)).'pt',
+            'line-height:'.((float) ($field['lineHeight'] ?? 1.2)),
+        ];
+
+        $characterSpacing = (float) ($field['characterSpacing'] ?? 0);
+
+        if ($characterSpacing !== 0.0) {
+            $styles[] = 'letter-spacing:'.$characterSpacing.'pt';
+        }
+
+        if ($fontColor = $this->cssColor($field['fontColor'] ?? null)) {
+            $styles[] = 'color:'.$fontColor;
+        }
+
+        return implode(';', $styles).';';
+    }
+
+    protected function cssMillimeters(mixed $value): string
+    {
+        return ((float) $value).'mm';
+    }
+
+    protected function millimetersToPoints(float $value): float
+    {
+        return $value * 72 / 25.4;
+    }
+
+    protected function cssTextAlignment(string $alignment): string
+    {
+        return match ($alignment) {
+            'center', 'right', 'justify' => $alignment,
+            default => 'left',
+        };
+    }
+
+    protected function cssVerticalAlignment(string $alignment): string
+    {
+        return match ($alignment) {
+            'middle', 'center' => 'middle',
+            'bottom' => 'bottom',
+            default => 'top',
+        };
+    }
+
+    protected function cssColor(mixed $color): ?string
+    {
+        $color = trim((string) $color);
+
+        if ($color === '' || strtolower($color) === 'transparent') {
+            return null;
+        }
+
+        if (preg_match('/^#[0-9a-f]{8}$/i', $color) === 1) {
+            $alpha = strtolower(substr($color, 7, 2));
+
+            return $alpha === '00' ? null : substr($color, 0, 7);
+        }
+
+        return $color;
     }
 
     /**

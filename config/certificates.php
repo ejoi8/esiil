@@ -2,8 +2,6 @@
 
 return [
     'pdfme' => [
-        'node_binary' => env('PDFME_NODE_BINARY', 'node'),
-        'generator_script' => resource_path('js/pdfme-generate-certificate.mjs'),
         'fonts' => [
             'CormorantGaramond' => [
                 'path' => public_path('fonts/certificates/CormorantGaramond-Regular.ttf'),

@@ -261,7 +261,7 @@ Current behavior:
 - the renderer can refresh `certificate_template_snapshot` from the linked template depending on the event’s `certificate_template_update_mode`
 - `certificate_metadata.template_schema_snapshot` is used to preserve a stable schema context
 
-Node is required because pdf generation is delegated to [pdfme-generate-certificate.mjs](/mnt/c/laragon/www/esijil/resources/js/pdfme-generate-certificate.mjs).
+Server-side PDF generation uses DomPDF, so certificate downloads do not require Node on the server. Node/npm is still used for building the Filament designer frontend assets.
 
 Relevant config lives in [config/certificates.php](/mnt/c/laragon/www/esijil/config/certificates.php).
 
@@ -301,10 +301,10 @@ Other seeders in the repo:
 
 - PHP 8.3
 - Composer
-- Node.js and npm
+- Node.js and npm for frontend asset builds
 - a configured database
 
-Node is required for certificate rendering.
+Certificate rendering runs through DomPDF and does not require Node on the server.
 
 ### Initial setup
 

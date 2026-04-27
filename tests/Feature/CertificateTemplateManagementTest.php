@@ -448,12 +448,13 @@ it('refreshes a linked issued certificate when the designer layout changes', fun
 
     expect($renderer->usesCurrentTemplate($registration->refresh()))->toBeFalse();
 
-    $renderer->render($registration);
+    $pdf = $renderer->render($registration);
 
     $titleField = collect($registration->refresh()->certificate_template_snapshot['schemas'][0] ?? [])
         ->firstWhere('name', 'certificate_title');
 
-    expect($renderer->usesCurrentTemplate($registration))->toBeTrue()
+    expect($pdf)->toStartWith('%PDF')
+        ->and($renderer->usesCurrentTemplate($registration))->toBeTrue()
         ->and($titleField)->toBeArray()
         ->and($titleField['content'])->toBe('NEW DESIGNER TITLE');
 });
@@ -498,6 +499,33 @@ it('keeps the issued certificate snapshot when the event locks snapshots', funct
 
     expect($titleField)->toBeArray()
         ->and($titleField['content'])->toBe('LOCKED OLD TITLE');
+});
+
+it('uses dompdf-safe text styles for certificate fields', function () {
+    $renderer = app(PdfmeCertificateRenderer::class);
+    $template = app(PdfmeTemplateFactory::class)->fromSchema([
+        'title' => 'SIJIL UJIAN',
+        'subtitle' => 'Dengan ini disahkan bahawa',
+        'body_intro' => 'telah menyertai program berikut',
+        'organizer_heading' => 'ANJURAN',
+    ]);
+
+    $method = new ReflectionMethod($renderer, 'dompdfFields');
+    $method->setAccessible(true);
+
+    $fields = $method->invoke($renderer, $template, [
+        'participant_name' => 'Nama Peserta',
+    ]);
+
+    $participantField = collect($fields)
+        ->first(fn (array $field): bool => $field['type'] === 'text' && $field['content'] === 'Nama Peserta');
+
+    expect($participantField)->toBeArray()
+        ->and($participantField['style'])->toContain('display:table')
+        ->and($participantField['style'])->toContain('overflow:visible')
+        ->and($participantField['style'])->not->toContain('display:flex')
+        ->and($participantField['contentStyle'])->toContain('display:table-cell')
+        ->and($participantField['contentStyle'])->toContain('vertical-align:middle');
 });
 
 it('does not expose asset management on the designer page anymore', function () {

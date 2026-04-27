@@ -2,8 +2,6 @@
 
 namespace App\Services\Certificates;
 
-use Illuminate\Support\Facades\File;
-
 class PdfmeFontRegistry
 {
     public const BODY_FONT = 'CormorantGaramond';
@@ -19,28 +17,6 @@ class PdfmeFontRegistry
         $definitions = config('certificates.pdfme.fonts', []);
 
         return $definitions;
-    }
-
-    /**
-     * @return array<string, array{data:string, fallback?:bool, subset?:bool}>
-     */
-    public function forGenerator(): array
-    {
-        $fonts = [];
-
-        foreach ($this->definitions() as $name => $definition) {
-            if (! File::exists($definition['path'])) {
-                continue;
-            }
-
-            $fonts[$name] = [
-                'data' => base64_encode((string) File::get($definition['path'])),
-                'fallback' => $definition['fallback'],
-                'subset' => $definition['subset'],
-            ];
-        }
-
-        return $fonts;
     }
 
     /**

@@ -7,6 +7,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "dompdf/dompdf": "^3.1",
         "ejoi8/filament-email-logs": "^1.0",
         "filament/filament": "~5.4.0",
         "filament/spatie-laravel-settings-plugin": "^5.0",

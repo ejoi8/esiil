@@ -153,7 +153,7 @@ class EventForm
                             ->options(CertificateTemplateUpdateMode::options())
                             ->formatStateUsing(fn (mixed $state): ?string => CertificateTemplateUpdateMode::fromMixed($state)?->value)
                             ->default(CertificateTemplateUpdateMode::UseLatestTemplate->value)
-                            ->helperText('Use latest template for legacy/migrated events that may need design fixes. Lock snapshots when issued certificates must stay unchanged.')
+                            ->helperText('Use latest template: certificate downloads follow the event’s current template. Lock issued snapshot: certificate downloads always use the issued snapshot.')
                             ->required()
                             ->columnSpanFull(),
                     ])

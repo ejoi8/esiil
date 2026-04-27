@@ -52,8 +52,8 @@ class PdfmeCertificateRenderer
             $certificateTemplate = $this->currentCertificateTemplateForRegistration($registration);
 
             $registration->forceFill([
-                'certificate_template_id' => $registration->certificate_template_id ?: $certificateTemplate?->id,
-                'certificate_template_key' => $registration->certificate_template_key ?: $certificateTemplate?->key,
+                'certificate_template_id' => $certificateTemplate?->id,
+                'certificate_template_key' => $certificateTemplate?->key,
                 'certificate_template_snapshot' => $currentTemplate,
                 'certificate_metadata' => $this->withTemplateSchemaSnapshot(
                     $registration,
@@ -95,8 +95,8 @@ class PdfmeCertificateRenderer
             $schemaSnapshot = $certificateTemplate->resolvedSchema();
 
             $registration->forceFill([
-                'certificate_template_id' => $registration->certificate_template_id ?: $certificateTemplate->id,
-                'certificate_template_key' => $registration->certificate_template_key ?: $certificateTemplate->key,
+                'certificate_template_id' => $certificateTemplate->id,
+                'certificate_template_key' => $certificateTemplate->key,
                 'certificate_template_snapshot' => $pdfmeTemplate,
                 'certificate_metadata' => $this->withTemplateSchemaSnapshot($registration, $schemaSnapshot),
             ])->save();
@@ -557,25 +557,20 @@ class PdfmeCertificateRenderer
     {
         $registration->load('certificateTemplate', 'event.certificateTemplate');
 
-        if ($registration->certificateTemplate !== null) {
-            return $registration->certificateTemplate;
-        }
-
         $eventTemplate = $registration->event?->certificateTemplate;
 
-        if ($eventTemplate === null) {
-            return null;
-        }
-
-        if ($registration->certificate_template_snapshot === null) {
+        if ($eventTemplate !== null && ! $this->hasDetachedSnapshotWithoutTemplateLink($registration)) {
             return $eventTemplate;
         }
 
-        $expectedTemplateKey = $registration->event?->template_key ?: $eventTemplate->key;
+        return $registration->certificateTemplate;
+    }
 
-        return filled($registration->certificate_template_key) && $registration->certificate_template_key === $expectedTemplateKey
-            ? $eventTemplate
-            : null;
+    protected function hasDetachedSnapshotWithoutTemplateLink(Registration $registration): bool
+    {
+        return $registration->certificate_template_snapshot !== null
+            && blank($registration->certificate_template_id)
+            && blank($registration->certificate_template_key);
     }
 
     protected function shouldUseCurrentTemplate(Registration $registration): bool

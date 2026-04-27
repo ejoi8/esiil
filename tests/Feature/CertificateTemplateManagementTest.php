@@ -434,9 +434,14 @@ it('refreshes a linked issued certificate when the designer layout changes', fun
         'type' => 'participation_certificate',
         'pdfme_template' => $oldTemplate,
     ]);
-    $registration = Registration::factory()->create([
+    $event = Event::factory()->for($template, 'certificateTemplate')->create([
+        'certificate_type' => 'participation_certificate',
+        'template_key' => $template->key,
+    ]);
+    $registration = Registration::factory()->for($event)->create([
         'certificate_type' => 'participation_certificate',
         'certificate_template_id' => $template->id,
+        'certificate_template_key' => $template->key,
         'certificate_template_snapshot' => $oldTemplate,
     ]);
 
@@ -457,6 +462,61 @@ it('refreshes a linked issued certificate when the designer layout changes', fun
         ->and($renderer->usesCurrentTemplate($registration))->toBeTrue()
         ->and($titleField)->toBeArray()
         ->and($titleField['content'])->toBe('NEW DESIGNER TITLE');
+});
+
+it('refreshes an issued certificate when the event switches to a newer default template', function () {
+    $oldTemplate = app(PdfmeTemplateFactory::class)->fromSchema([
+        'title' => 'OLD SWITCH TITLE',
+        'subtitle' => 'Dengan ini disahkan bahawa',
+        'body_intro' => 'telah menyertai program berikut',
+        'organizer_heading' => 'ANJURAN',
+    ]);
+    $newTemplate = app(PdfmeTemplateFactory::class)->fromSchema([
+        'title' => 'NEW SWITCH TITLE',
+        'subtitle' => 'Dengan ini disahkan bahawa',
+        'body_intro' => 'telah menyertai program berikut',
+        'organizer_heading' => 'ANJURAN',
+    ]);
+
+    $originalTemplate = CertificateTemplate::factory()->create([
+        'type' => 'participation_certificate',
+        'pdfme_template' => $oldTemplate,
+    ]);
+    $replacementTemplate = CertificateTemplate::factory()->create([
+        'type' => 'participation_certificate',
+        'pdfme_template' => $newTemplate,
+    ]);
+    $event = Event::factory()->for($originalTemplate, 'certificateTemplate')->create([
+        'certificate_type' => 'participation_certificate',
+        'template_key' => $originalTemplate->key,
+    ]);
+    $registration = Registration::factory()->for($event)->create([
+        'certificate_type' => 'participation_certificate',
+        'certificate_template_id' => $originalTemplate->id,
+        'certificate_template_key' => $originalTemplate->key,
+        'certificate_template_snapshot' => $oldTemplate,
+    ]);
+
+    $event->forceFill([
+        'certificate_template_id' => $replacementTemplate->id,
+        'template_key' => $replacementTemplate->key,
+    ])->save();
+
+    $renderer = app(PdfmeCertificateRenderer::class);
+
+    expect($renderer->usesCurrentTemplate($registration->refresh()))->toBeFalse();
+
+    $pdf = $renderer->render($registration);
+
+    $titleField = collect($registration->refresh()->certificate_template_snapshot['schemas'][0] ?? [])
+        ->firstWhere('name', 'certificate_title');
+
+    expect($pdf)->toStartWith('%PDF')
+        ->and($registration->certificate_template_id)->toBe($replacementTemplate->id)
+        ->and($registration->certificate_template_key)->toBe($replacementTemplate->key)
+        ->and($renderer->usesCurrentTemplate($registration))->toBeTrue()
+        ->and($titleField)->toBeArray()
+        ->and($titleField['content'])->toBe('NEW SWITCH TITLE');
 });
 
 it('refreshes an issued certificate from the event default template when the designer layout changes', function () {

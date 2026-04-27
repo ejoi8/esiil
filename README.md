@@ -36,7 +36,8 @@ The current application supports:
 - Tailwind CSS 4
 - Spatie Laravel Settings
 - ejoi8 Filament Email Logs
-- pdfme for template design and PDF generation
+- pdfme for template design
+- DomPDF for server-side certificate PDF downloads
 
 ## Main Surfaces
 
@@ -263,6 +264,13 @@ Current behavior:
 
 Server-side PDF generation uses DomPDF, so certificate downloads do not require Node on the server. Node/npm is still used for building the Filament designer frontend assets.
 
+Important rendering note:
+
+- the Filament designer preview is rendered in-browser with `@pdfme/ui`
+- downloaded certificates are rendered server-side by [PdfmeCertificateRenderer.php](/mnt/c/laragon/www/esijil/app/Services/Certificates/PdfmeCertificateRenderer.php) through DomPDF
+- saved templates are shared between both paths, but text layout can still differ slightly because the preview and download do not use the same rendering engine
+- image fields are explicitly fitted with pdfme-style contain math in the server renderer so logos, signatures, and backgrounds preserve their aspect ratio more closely
+
 Relevant config lives in [config/certificates.php](/mnt/c/laragon/www/esijil/config/certificates.php).
 
 ## Template Management
@@ -279,6 +287,12 @@ Key points:
 Fonts used by the renderer/designer live in:
 
 - [public/fonts/certificates](/mnt/c/laragon/www/esijil/public/fonts/certificates)
+
+Relevant rendering files:
+
+- [resources/js/certificate-template-designer.js](/mnt/c/laragon/www/esijil/resources/js/certificate-template-designer.js)
+- [app/Services/Certificates/PdfmeCertificateRenderer.php](/mnt/c/laragon/www/esijil/app/Services/Certificates/PdfmeCertificateRenderer.php)
+- [resources/views/certificates/pdfme-dompdf.blade.php](/mnt/c/laragon/www/esijil/resources/views/certificates/pdfme-dompdf.blade.php)
 
 ## Seeders
 

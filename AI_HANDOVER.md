@@ -73,12 +73,14 @@ Key facts:
 
 ## Certificate Rendering Rules
 
-Certificate generation uses pdfme through Node.
+Certificate templates are designed with pdfme in the browser, but downloads are rendered server-side with DomPDF.
 
 Important files:
 
 - [config/certificates.php](/mnt/c/laragon/www/esijil/config/certificates.php)
-- [resources/js/pdfme-generate-certificate.mjs](/mnt/c/laragon/www/esijil/resources/js/pdfme-generate-certificate.mjs)
+- [resources/js/certificate-template-designer.js](/mnt/c/laragon/www/esijil/resources/js/certificate-template-designer.js)
+- [app/Services/Certificates/PdfmeCertificateRenderer.php](/mnt/c/laragon/www/esijil/app/Services/Certificates/PdfmeCertificateRenderer.php)
+- [resources/views/certificates/pdfme-dompdf.blade.php](/mnt/c/laragon/www/esijil/resources/views/certificates/pdfme-dompdf.blade.php)
 - [public/fonts/certificates](/mnt/c/laragon/www/esijil/public/fonts/certificates)
 
 Important behavior:
@@ -87,6 +89,8 @@ Important behavior:
 - `certificate_metadata.template_schema_snapshot` preserves schema context
 - renderer may sync the snapshot to the current template depending on `certificate_template_update_mode`
 - downloads render from the current registration record
+- preview and downloaded PDF can still differ slightly because `@pdfme/ui` and DomPDF do not measure text exactly the same way
+- image fields are explicitly fitted in the server renderer to preserve pdfme-style aspect ratio handling more closely
 
 If you change template behavior, inspect:
 
@@ -184,6 +188,6 @@ vendor/bin/pint --dirty --format agent
 - Do not document or code against a `CertificateResource`; it does not exist in the current app.
 - Do not assume event registration is public-listable; there is no public `/events` index.
 - Do not bypass `nokp` normalization rules in the request classes.
-- Do not forget Node is required for certificate rendering.
+- Do not assume Node is required for certificate downloads; it is only needed for frontend asset builds and the designer UI.
 - Do not ignore `certificate_template_update_mode` when changing rendering logic.
 - Do not change public route semantics without updating the session-based authorization checks and tests.

@@ -7,6 +7,7 @@ use App\Filament\Resources\Registrations\RegistrationResource;
 use App\Models\Registration;
 use Filament\Actions\Action;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -51,6 +52,12 @@ class IssuedCertificatesRelationManager extends RelationManager
             ->recordActions([
                 Action::make('view')
                     ->url(fn (Registration $record): string => RegistrationResource::getUrl('view', ['record' => $record])),
+                Action::make('download_certificate')
+                    ->label('Download PDF')
+                    ->icon(Heroicon::OutlinedArrowDownTray)
+                    ->color('primary')
+                    ->url(fn (Registration $record): string => RegistrationResource::certificateDownloadUrl($record))
+                    ->openUrlInNewTab(),
                 Action::make('edit')
                     ->url(fn (Registration $record): string => RegistrationResource::getUrl('edit', ['record' => $record])),
             ]);

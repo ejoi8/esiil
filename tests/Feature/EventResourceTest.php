@@ -92,6 +92,21 @@ it('renders the event edit page with associated data tabs', function () {
         ->assertSee('Issued Certificates');
 });
 
+it('shows the download pdf action in the issued certificates relation manager', function () {
+    $this->actingAs(User::factory()->create());
+
+    $event = Event::factory()->create();
+    $registration = Registration::factory()->for($event)->create();
+
+    Livewire::test(IssuedCertificatesRelationManager::class, [
+        'ownerRecord' => $event,
+        'pageClass' => EditEvent::class,
+    ])
+        ->assertSuccessful()
+        ->assertTableActionExists('download_certificate', record: $registration)
+        ->assertTableActionVisible('download_certificate', record: $registration);
+});
+
 it('shows the signed public registration url on the event edit page for published events', function () {
     $this->actingAs(User::factory()->create());
 

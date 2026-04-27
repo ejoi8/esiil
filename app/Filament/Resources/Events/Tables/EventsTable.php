@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Events\Tables;
 use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Enums\EventStatus;
+use App\Models\CertificateTemplate;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -13,6 +14,7 @@ use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
@@ -82,6 +84,13 @@ class EventsTable
             ])
             ->defaultSort('starts_at', 'desc')
             ->filters([
+                SelectFilter::make('certificate_type')
+                    ->label('Certificate Type')
+                    ->options(CertificateType::options()),
+                SelectFilter::make('certificate_template_id')
+                    ->label('Certificate Template')
+                    ->relationship('certificateTemplate', 'name')
+                    ->getOptionLabelFromRecordUsing(fn (CertificateTemplate $record): string => $record->name),
                 TrashedFilter::make(),
             ])
             ->recordActions([

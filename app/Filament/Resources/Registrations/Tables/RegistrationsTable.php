@@ -3,13 +3,18 @@
 namespace App\Filament\Resources\Registrations\Tables;
 
 use App\Enums\CertificateType;
+use App\Filament\Resources\Registrations\RegistrationResource;
+use App\Models\Registration;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
@@ -69,10 +74,23 @@ class RegistrationsTable
             ])
             ->defaultSort('registered_at', 'desc')
             ->filters([
+                SelectFilter::make('source')
+                    ->options([
+                        'legacy_import' => 'Legacy Import',
+                        'public_form' => 'Public Form',
+                        'admin' => 'Admin',
+                    ]),
                 TrashedFilter::make(),
             ])
             ->recordActions([
                 ViewAction::make(),
+                Action::make('download_certificate')
+                    ->label('Download PDF')
+                    ->icon(Heroicon::OutlinedArrowDownTray)
+                    ->color('primary')
+                    ->visible(fn (Registration $record): bool => $record->certificate_type !== null)
+                    ->url(fn (Registration $record): string => RegistrationResource::certificateDownloadUrl($record))
+                    ->openUrlInNewTab(),
                 EditAction::make(),
             ])
             ->toolbarActions([

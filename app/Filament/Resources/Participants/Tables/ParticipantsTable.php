@@ -8,8 +8,8 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
@@ -33,15 +33,12 @@ class ParticipantsTable
                     ->searchable(),
                 TextColumn::make('branch.name')
                     ->label('Branch')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('membership_status')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => str($state)->replace('_', ' ')->title())
                     ->searchable(),
-                IconColumn::make('email')
-                    ->label('Placeholder')
-                    ->boolean()
-                    ->state(fn ($record): bool => str($record->email)->contains('@placeholder.local')),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -57,6 +54,12 @@ class ParticipantsTable
             ])
             ->defaultSort('full_name')
             ->filters([
+                SelectFilter::make('membership_status')
+                    ->label('Membership Status')
+                    ->options([
+                        'member' => 'Member',
+                        'non_member' => 'Non Member',
+                    ]),
                 TrashedFilter::make(),
             ])
             ->recordActions([

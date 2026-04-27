@@ -4,11 +4,13 @@ namespace App\Filament\Resources\Registrations\Pages;
 
 use App\Filament\Resources\Registrations\RegistrationResource;
 use App\Services\Certificates\RegistrationCertificateIssuer;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Icons\Heroicon;
 
 class EditRegistration extends EditRecord
 {
@@ -23,6 +25,13 @@ class EditRegistration extends EditRecord
     {
         return [
             ViewAction::make(),
+            Action::make('download_certificate')
+                ->label('Download PDF')
+                ->icon(Heroicon::OutlinedArrowDownTray)
+                ->color('primary')
+                ->visible(fn (): bool => $this->record->certificate_type !== null)
+                ->url(fn (): string => RegistrationResource::certificateDownloadUrl($this->record))
+                ->openUrlInNewTab(),
             DeleteAction::make(),
             ForceDeleteAction::make(),
             RestoreAction::make(),

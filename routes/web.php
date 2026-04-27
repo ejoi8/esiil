@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminRegistrationCertificateDownloadController;
 use App\Http\Controllers\CertificateLookupController;
 use App\Http\Controllers\EventRegistrationController;
 use App\Models\User;
@@ -22,6 +23,10 @@ Route::middleware('signed')->group(function (): void {
 
 Route::get('/registrations/{registration}/success', [EventRegistrationController::class, 'success'])->name('events.register.success');
 Route::get('/registrations/{registration}/certificate', [EventRegistrationController::class, 'downloadCertificate'])->name('events.register.certificate');
+Route::middleware('auth')->group(function (): void {
+    Route::get('/auth/registrations/{registration}/certificate', AdminRegistrationCertificateDownloadController::class)
+        ->name('auth.registrations.certificate');
+});
 
 if (app()->environment('local')) {
 

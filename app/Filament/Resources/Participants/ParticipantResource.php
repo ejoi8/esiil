@@ -6,6 +6,7 @@ use App\Filament\Resources\Participants\Pages\CreateParticipant;
 use App\Filament\Resources\Participants\Pages\EditParticipant;
 use App\Filament\Resources\Participants\Pages\ListParticipants;
 use App\Filament\Resources\Participants\Pages\ViewParticipant;
+use App\Filament\Resources\Participants\RelationManagers\RegistrationsRelationManager;
 use App\Filament\Resources\Participants\Schemas\ParticipantForm;
 use App\Filament\Resources\Participants\Schemas\ParticipantInfolist;
 use App\Filament\Resources\Participants\Tables\ParticipantsTable;
@@ -48,7 +49,7 @@ class ParticipantResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RegistrationsRelationManager::class,
         ];
     }
 

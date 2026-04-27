@@ -50,6 +50,11 @@ class RegistrationResource extends Resource
         ];
     }
 
+    public static function certificateDownloadUrl(Registration $record): string
+    {
+        return route('auth.registrations.certificate', $record);
+    }
+
     public static function getPages(): array
     {
         return [

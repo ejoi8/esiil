@@ -610,14 +610,35 @@ it('keeps the issued certificate snapshot when the event locks snapshots', funct
         ->and($titleField['content'])->toBe('LOCKED OLD TITLE');
 });
 
-it('uses dompdf-safe text styles for certificate fields', function () {
+it('uses dompdf-safe text styles that stay closer to the pdfme designer output', function () {
     $renderer = app(PdfmeCertificateRenderer::class);
-    $template = app(PdfmeTemplateFactory::class)->fromSchema([
-        'title' => 'SIJIL UJIAN',
-        'subtitle' => 'Dengan ini disahkan bahawa',
-        'body_intro' => 'telah menyertai program berikut',
-        'organizer_heading' => 'ANJURAN',
-    ]);
+    $template = [
+        'basePdf' => [
+            'width' => 210,
+            'height' => 297,
+            'padding' => [0, 0, 0, 0],
+        ],
+        'schemas' => [[
+            [
+                'name' => 'participant_name',
+                'type' => 'text',
+                'content' => '{{participant_name}}',
+                'position' => ['x' => 24, 'y' => 79],
+                'width' => 162,
+                'height' => 10,
+                'alignment' => 'center',
+                'verticalAlignment' => 'top',
+                'fontName' => PdfmeFontRegistry::BODY_FONT,
+                'fontSize' => 12,
+                'lineHeight' => 1.1,
+                'characterSpacing' => 0,
+                'fontColor' => '#1f1a17',
+                'backgroundColor' => '#ffffff00',
+                'underline' => true,
+                'strikethrough' => true,
+            ],
+        ]],
+    ];
 
     $method = new ReflectionMethod($renderer, 'dompdfFields');
     $method->setAccessible(true);
@@ -634,7 +655,48 @@ it('uses dompdf-safe text styles for certificate fields', function () {
         ->and($participantField['style'])->toContain('overflow:visible')
         ->and($participantField['style'])->not->toContain('display:flex')
         ->and($participantField['contentStyle'])->toContain('display:table-cell')
-        ->and($participantField['contentStyle'])->toContain('vertical-align:middle');
+        ->and($participantField['contentStyle'])->toContain('vertical-align:top')
+        ->and($participantField['contentStyle'])->toContain('word-wrap:break-word')
+        ->and($participantField['contentStyle'])->toContain('overflow-wrap:break-word')
+        ->and($participantField['contentStyle'])->toContain('text-decoration:underline line-through')
+        ->and($participantField['contentStyle'])->toContain('position:relative')
+        ->and($participantField['contentStyle'])->toContain('top:');
+});
+
+it('preserves image aspect ratio for certificate logos in the pdf renderer', function () {
+    $renderer = app(PdfmeCertificateRenderer::class);
+    $template = [
+        'basePdf' => [
+            'width' => 210,
+            'height' => 297,
+            'padding' => [0, 0, 0, 0],
+        ],
+        'schemas' => [[
+            [
+                'name' => 'logo_image',
+                'type' => 'image',
+                'content' => 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WnL8i8AAAAASUVORK5CYII=',
+                'position' => ['x' => 80, 'y' => 12],
+                'width' => 50,
+                'height' => 28,
+            ],
+        ]],
+    ];
+
+    $method = new ReflectionMethod($renderer, 'dompdfFields');
+    $method->setAccessible(true);
+
+    $fields = $method->invoke($renderer, $template, []);
+
+    $logoField = collect($fields)
+        ->first(fn (array $field): bool => $field['type'] === 'image');
+
+    expect($logoField)->toBeArray()
+        ->and($logoField['style'])->toContain('left:91mm')
+        ->and($logoField['style'])->toContain('top:12mm')
+        ->and($logoField['style'])->toContain('width:28mm')
+        ->and($logoField['style'])->toContain('height:28mm')
+        ->and($logoField['style'])->not->toContain('object-fit:contain');
 });
 
 it('does not expose asset management on the designer page anymore', function () {

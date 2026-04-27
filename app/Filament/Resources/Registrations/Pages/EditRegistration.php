@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Filament\Resources\Registrations\Pages;
+
+use App\Filament\Resources\Registrations\RegistrationResource;
+use App\Services\Certificates\RegistrationCertificateIssuer;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\ViewAction;
+use Filament\Resources\Pages\EditRecord;
+
+class EditRegistration extends EditRecord
+{
+    protected static string $resource = RegistrationResource::class;
+
+    protected function afterSave(): void
+    {
+        app(RegistrationCertificateIssuer::class)->issueFor($this->record);
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            ViewAction::make(),
+            DeleteAction::make(),
+            ForceDeleteAction::make(),
+            RestoreAction::make(),
+        ];
+    }
+}

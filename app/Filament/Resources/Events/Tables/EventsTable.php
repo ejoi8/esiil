@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Filament\Resources\Events\Tables;
+
+use App\Enums\CertificateTemplateUpdateMode;
+use App\Enums\CertificateType;
+use App\Enums\EventStatus;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Tables\Columns\SelectColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TrashedFilter;
+use Filament\Tables\Table;
+
+class EventsTable
+{
+    public static function configure(Table $table): Table
+    {
+        return $table
+            ->columns([
+                TextColumn::make('title')
+                    ->sortable()
+                    ->wrap()
+                    ->searchable(),
+                TextColumn::make('starts_at')
+                    ->dateTime('d M Y H:i')
+                    ->wrap()
+                    ->sortable(),
+                TextColumn::make('ends_at')
+                    ->dateTime('d M Y H:i')
+                    ->wrap()
+                    ->sortable(),
+                TextColumn::make('venue')
+                    ->wrap()
+                    ->searchable(),
+                TextColumn::make('organizer_name')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                SelectColumn::make('status')
+                    ->options(EventStatus::options())
+                    ->searchable(),
+                TextColumn::make('certificate_type')
+                    ->label('Certificate Type')
+                    ->badge()
+                    ->formatStateUsing(fn (mixed $state): string => CertificateType::labelFor($state))
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('registrations_count')
+                    ->counts('registrations')
+                    ->label('Registrations')
+                    ->sortable(),
+                TextColumn::make('certificateTemplate.name')
+                    ->label('Certificate Template')
+                    ->searchable()
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('certificate_template_update_mode')
+                    ->label('Template Mode')
+                    ->badge()
+                    ->formatStateUsing(fn (mixed $state): string => CertificateTemplateUpdateMode::labelFor($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('creator.name')
+                    ->label('Created By')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('updated_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('deleted_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->defaultSort('starts_at', 'desc')
+            ->filters([
+                TrashedFilter::make(),
+            ])
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    ForceDeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
+                ]),
+            ]);
+    }
+}

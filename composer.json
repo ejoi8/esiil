@@ -7,7 +7,9 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "ejoi8/filament-email-logs": "^1.0",
         "filament/filament": "~5.4.0",
+        "filament/spatie-laravel-settings-plugin": "^5.0",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0"
     },

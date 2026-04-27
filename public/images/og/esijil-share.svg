@@ -1,0 +1,33 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+    <title id="title">eSIJIL PUSPANITA</title>
+    <desc id="desc">Semakan sijil, pendaftaran program, dan muat turun sijil digital eSIJIL PUSPANITA.</desc>
+    <defs>
+        <linearGradient id="bg" x1="88" y1="54" x2="1086" y2="610" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FFF2D8"/>
+            <stop offset="1" stop-color="#F4E1B6"/>
+        </linearGradient>
+        <linearGradient id="panel" x1="176" y1="112" x2="1019" y2="542" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#FFFDF7"/>
+            <stop offset="1" stop-color="#FFF7E8"/>
+        </linearGradient>
+    </defs>
+    <rect width="1200" height="630" rx="36" fill="url(#bg)"/>
+    <circle cx="1074" cy="116" r="98" fill="#E8C77A" fill-opacity="0.35"/>
+    <circle cx="154" cy="558" r="124" fill="#F0D8A0" fill-opacity="0.45"/>
+    <rect x="82" y="70" width="1036" height="490" rx="34" fill="url(#panel)" stroke="#E5C98D" stroke-width="2"/>
+    <rect x="136" y="126" width="156" height="44" rx="22" fill="#F4D68D"/>
+    <text x="214" y="154" text-anchor="middle" fill="#8D5200" font-family="Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="4">eSIJIL</text>
+    <text x="136" y="250" fill="#1F1A17" font-family="Arial, sans-serif" font-size="64" font-weight="700">PUSPANITA</text>
+    <text x="136" y="320" fill="#1F1A17" font-family="Arial, sans-serif" font-size="34" font-weight="600">Semakan sijil, pendaftaran program,</text>
+    <text x="136" y="366" fill="#1F1A17" font-family="Arial, sans-serif" font-size="34" font-weight="600">dan muat turun sijil digital.</text>
+    <text x="136" y="442" fill="#6F6257" font-family="Arial, sans-serif" font-size="26">Satu pintu untuk carian peserta, pautan pendaftaran,</text>
+    <text x="136" y="478" fill="#6F6257" font-family="Arial, sans-serif" font-size="26">dan pengurusan sijil program.</text>
+    <rect x="792" y="154" width="246" height="126" rx="24" fill="#1F1A17"/>
+    <text x="828" y="205" fill="#F9E4A6" font-family="Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="3">STATUS</text>
+    <text x="828" y="248" fill="white" font-family="Arial, sans-serif" font-size="30" font-weight="700">SIJIL DIGITAL</text>
+    <rect x="792" y="312" width="246" height="154" rx="24" fill="#FFF7E8" stroke="#D8B46A" stroke-width="2"/>
+    <text x="828" y="360" fill="#8D5200" font-family="Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="3">AKSES</text>
+    <text x="828" y="404" fill="#1F1A17" font-family="Arial, sans-serif" font-size="28" font-weight="700">SEMAKAN</text>
+    <text x="828" y="438" fill="#1F1A17" font-family="Arial, sans-serif" font-size="28" font-weight="700">PENDAFTARAN</text>
+    <text x="828" y="472" fill="#1F1A17" font-family="Arial, sans-serif" font-size="28" font-weight="700">MUAT TURUN</text>
+</svg>

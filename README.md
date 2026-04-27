@@ -1,58 +1,377 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# eSIJIL
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+eSIJIL is a Laravel 13 + Filament 5 application for managing events, participants, registrations, certificate templates, and certificate PDF issuance.
 
-## About Laravel
+The app has two main surfaces:
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- a Filament admin panel at `/auth`
+- a public surface for certificate lookup and signed event registration
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+See [AI_HANDOVER.md](/mnt/c/laragon/www/esijil/AI_HANDOVER.md) for a compact project brief aimed at future AI agents.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Current Scope
 
-## Learning Laravel
+The current application supports:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- branch management
+- participant management
+- event management
+- registration management
+- certificate template management with a pdfme-based designer
+- certificate PDF generation and download
+- public certificate lookup by `nokp`
+- public event registration through signed links
+- application settings for SMTP mail and notification controls
+- queued registration confirmation notifications
+- email log viewing and resend support in Filament
+- legacy import and normalization seeders
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Tech Stack
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+- PHP 8.3
+- Laravel 13
+- Filament 5
+- Livewire 4
+- Pest 4
+- Tailwind CSS 4
+- Spatie Laravel Settings
+- ejoi8 Filament Email Logs
+- pdfme for template design and PDF generation
 
-## Agentic Development
+## Main Surfaces
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Admin panel
 
-```bash
-composer require laravel/boost --dev
+The admin panel is defined by [AuthPanelProvider.php](/mnt/c/laragon/www/esijil/app/Providers/Filament/AuthPanelProvider.php) and lives at `/auth`.
 
-php artisan boost:install
+Current resources:
+
+- `BranchResource`
+- `ParticipantResource`
+- `EventResource`
+- `RegistrationResource`
+- `CertificateTemplateResource`
+- `EmailLogResource` from `ejoi8/filament-email-logs`
+
+Navigation groups:
+
+- `Operations`
+- `Directory`
+- `Certificates`
+- `Settings`
+
+Settings pages and plugin resources:
+
+- `Application Settings` - SMTP, sender, notification toggles, and test email actions
+- `Email Logs` - logged outgoing emails with preview and resend support
+
+### Public routes
+
+Public routes live in [routes/web.php](/mnt/c/laragon/www/esijil/routes/web.php).
+
+Current public flows:
+
+- `GET /` - landing page
+- `GET /semakan` - certificate lookup form
+- `POST /semakan` - lookup submit, throttled by `certificate-lookup`
+- `GET /semakan/keputusan` - lookup result page
+- `GET /certificates/{registration}/download` - download a registration certificate after a valid lookup session
+- `GET /events/{event}/register` - signed event registration page
+- `POST /events/{event}/register` - signed event registration submit
+- `GET /registrations/{registration}/success` - registration success page
+- `GET /registrations/{registration}/certificate` - certificate download for the current registration session
+
+## Domain Model
+
+Core models:
+
+- `Branch` - participant grouping / directory metadata
+- `Participant` - a person who can join events
+- `Event` - an event with schedule, status, registration window, and default certificate settings
+- `Registration` - the participant-to-event record, including issued certificate data
+- `CertificateTemplate` - reusable certificate template metadata, schema, and `pdfme_template`
+
+Important current state:
+
+- there is no active `Certificate` model or `certificates` table in the current application state
+- issued document state is stored directly on `registrations`
+- event relation managers still expose “Issued Certificates”, but they are filtered registration records
+
+Certificate-related columns currently stored on `registrations` include:
+
+- `certificate_type`
+- `certificate_template_id`
+- `certificate_template_key`
+- `certificate_template_snapshot`
+- `cert_serial_number`
+- `certificate_file_path`
+- `certificate_issued_at`
+- `certificate_metadata`
+
+The merge from the older separate certificate table is captured in [2026_04_26_065610_merge_certificates_into_registrations_table.php](/mnt/c/laragon/www/esijil/database/migrations/2026_04_26_065610_merge_certificates_into_registrations_table.php).
+
+## Business Rules
+
+### Certificate types
+
+The app supports two certificate types via [CertificateType.php](/mnt/c/laragon/www/esijil/app/Enums/CertificateType.php):
+
+- `participation_certificate`
+- `attendance_slip`
+
+Their seeded default template keys are:
+
+- `default-participation`
+- `default-attendance`
+
+### Issuance model
+
+The current domain assumes one issued document context per registration.
+
+That means:
+
+- a registration may carry certificate issuance data
+- “issued certificate” behavior is represented through the registration record
+- download and rendering work from `Registration`, not from a separate certificate entity
+
+### Event publication and registration access
+
+Public event registration requires:
+
+- a valid signed URL
+- event status `published`
+- the current time to be within the configured registration window, if one is set
+
+`Event::publicRegistrationUrl()` creates a temporary signed route that expires 24 hours after the event ends, or 24 hours after it starts when no end time exists.
+
+### Lookup throttling
+
+Certificate lookup POST requests are throttled in [AppServiceProvider.php](/mnt/c/laragon/www/esijil/app/Providers/AppServiceProvider.php):
+
+- `5` requests per minute
+- keyed by `ip + sha1(nokp)`
+
+### NOKP normalization
+
+Public lookup and registration normalize `nokp` to digits only in:
+
+- [LookupCertificateRequest.php](/mnt/c/laragon/www/esijil/app/Http/Requests/LookupCertificateRequest.php)
+- [StoreEventRegistrationRequest.php](/mnt/c/laragon/www/esijil/app/Http/Requests/StoreEventRegistrationRequest.php)
+
+## Application Settings And Mail
+
+Application-wide settings are managed in the Filament admin panel under `Settings > Application Settings`.
+
+Settings are stored with Spatie Laravel Settings:
+
+- [MailSettings.php](/mnt/c/laragon/www/esijil/app/Settings/MailSettings.php) stores the default mailer, SMTP server, credentials, and global sender address.
+- [NotificationSettings.php](/mnt/c/laragon/www/esijil/app/Settings/NotificationSettings.php) stores notification feature toggles.
+
+The page currently has these tabs:
+
+- `Email` - mailer, SMTP, sender details, and a simple test email action.
+- `General` - reserved for future app-wide settings.
+- `Notifications` - registration notification controls and notification test actions.
+
+Current notification controls:
+
+- `Send registration confirmation` controls whether a participant receives a confirmation email after a new public registration.
+- Manual `Send test notification` remains available for admins even when the live registration confirmation toggle is disabled.
+
+Runtime mail configuration is applied by [MailSettingsConfigurator.php](/mnt/c/laragon/www/esijil/app/Services/Mail/MailSettingsConfigurator.php) during application boot and before test email actions.
+
+### Registration Confirmation Email
+
+After a new public registration is created, the app sends [RegistrationSubmitted.php](/mnt/c/laragon/www/esijil/app/Notifications/RegistrationSubmitted.php) to the participant when the notification toggle is enabled.
+
+The notification is queued with:
+
+- `ShouldQueue`
+- `afterCommit()`
+- `3` tries
+- backoff intervals of `60`, `300`, and `900` seconds
+
+This prevents SMTP/provider latency from blocking registration when a real queue connection is used.
+
+### Mail Queue Setup
+
+For reliable email delivery, use the database queue instead of `sync`.
+
+Recommended `.env`:
+
+```env
+QUEUE_CONNECTION=database
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+The project already includes Laravel's default `jobs` and `failed_jobs` migrations. Run migrations after changing queue/database setup:
 
-## Contributing
+```bash
+php artisan migrate
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Run a queue worker locally:
 
-## Code of Conduct
+```bash
+php artisan queue:work --tries=3
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Or use the existing development script:
 
-## Security Vulnerabilities
+```bash
+composer dev
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+`composer dev` starts the Laravel server, Vite, and a queue listener.
 
-## License
+If `QUEUE_CONNECTION=sync`, queued notifications run immediately inside the registration request. In that mode, an email provider failure can still cause the user to see an error page and Laravel will not retry the email later.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+In production, keep a worker running with Supervisor or another process manager:
+
+```bash
+php artisan queue:work --tries=3 --backoff=60
+```
+
+Failed queued emails are recorded in `failed_jobs`. Use Laravel queue tooling to inspect and retry them:
+
+```bash
+php artisan queue:failed
+php artisan queue:retry all
+```
+
+### Email Logs
+
+Outgoing emails are logged by `ejoi8/filament-email-logs`.
+
+The plugin is registered in [AuthPanelProvider.php](/mnt/c/laragon/www/esijil/app/Providers/Filament/AuthPanelProvider.php), authorized for authenticated panel users, and shown under the `Settings` navigation group.
+
+Email log migrations are loaded by the package and create/update the `email_logs` table. The admin panel exposes email log listing, preview, and resend actions.
+
+## Certificate Flow
+
+Certificate generation currently revolves around these classes:
+
+- [RegistrationCertificateIssuer.php](/mnt/c/laragon/www/esijil/app/Services/Certificates/RegistrationCertificateIssuer.php)
+- [StoredCertificatePdf.php](/mnt/c/laragon/www/esijil/app/Services/Certificates/StoredCertificatePdf.php)
+- [PdfmeCertificateRenderer.php](/mnt/c/laragon/www/esijil/app/Services/Certificates/PdfmeCertificateRenderer.php)
+
+Current behavior:
+
+- issuing a certificate writes certificate metadata onto the `registrations` row
+- downloads render from the current `Registration`
+- the renderer can refresh `certificate_template_snapshot` from the linked template depending on the event’s `certificate_template_update_mode`
+- `certificate_metadata.template_schema_snapshot` is used to preserve a stable schema context
+
+Node is required because pdf generation is delegated to [pdfme-generate-certificate.mjs](/mnt/c/laragon/www/esijil/resources/js/pdfme-generate-certificate.mjs).
+
+Relevant config lives in [config/certificates.php](/mnt/c/laragon/www/esijil/config/certificates.php).
+
+## Template Management
+
+Templates are managed through `CertificateTemplateResource` and its designer page.
+
+Key points:
+
+- templates store both legacy schema-style data and `pdfme_template`
+- the Filament designer page is [Designer.php](/mnt/c/laragon/www/esijil/app/Filament/Resources/CertificateTemplates/Pages/Designer.php)
+- seeded defaults are maintained by [CertificateTemplateSeeder.php](/mnt/c/laragon/www/esijil/database/seeders/CertificateTemplateSeeder.php)
+- attendance slip defaults reuse the participation layout and replace the certificate title with `Slip Kehadiran`
+
+Fonts used by the renderer/designer live in:
+
+- [public/fonts/certificates](/mnt/c/laragon/www/esijil/public/fonts/certificates)
+
+## Seeders
+
+The default [DatabaseSeeder.php](/mnt/c/laragon/www/esijil/database/seeders/DatabaseSeeder.php) currently:
+
+- creates `admin@admin.com` with password `password`
+- runs `LegacyEsijilSeeder`
+- runs `NormalizeLegacyBranchesSeeder`
+- runs `CertificateTemplateSeeder`
+
+Other seeders in the repo:
+
+- `BranchSeeder`
+- `DemoDataSeeder`
+- `RefreshLegacyEsijilSeeder`
+
+## Local Development
+
+### Prerequisites
+
+- PHP 8.3
+- Composer
+- Node.js and npm
+- a configured database
+
+Node is required for certificate rendering.
+
+### Initial setup
+
+```bash
+composer setup
+```
+
+This script currently:
+
+- installs PHP dependencies
+- creates `.env` if needed
+- generates the app key
+- runs migrations
+- installs npm dependencies
+- builds frontend assets
+
+### Run the app
+
+```bash
+composer dev
+```
+
+This starts:
+
+- `php artisan serve`
+- `php artisan queue:listen --tries=1`
+- `npm run dev`
+
+For mail behavior closer to production, prefer running a worker manually in another terminal:
+
+```bash
+php artisan queue:work --tries=3
+```
+
+### Local admin shortcuts
+
+In `local` environment only, the app exposes helper routes:
+
+- `/dev/{id-or-email}` - sign in as a user
+- `/dev-logout` - sign out and return to `/auth`
+
+## Testing
+
+This project uses Pest.
+
+Run the full test suite:
+
+```bash
+php artisan test --compact
+```
+
+Useful focused files:
+
+- `tests/Feature/CertificateLookupTest.php`
+- `tests/Feature/EventRegistrationTest.php`
+- `tests/Feature/MailSettingsTest.php`
+- `tests/Feature/EventResourceTest.php`
+- `tests/Feature/CertificateTemplateManagementTest.php`
+- `tests/Feature/DomainConsistencyTest.php`
+
+## Key Files
+
+- [routes/web.php](/mnt/c/laragon/www/esijil/routes/web.php)
+- [app/Models/Event.php](/mnt/c/laragon/www/esijil/app/Models/Event.php)
+- [app/Models/Registration.php](/mnt/c/laragon/www/esijil/app/Models/Registration.php)
+- [app/Http/Controllers/CertificateLookupController.php](/mnt/c/laragon/www/esijil/app/Http/Controllers/CertificateLookupController.php)
+- [app/Http/Controllers/EventRegistrationController.php](/mnt/c/laragon/www/esijil/app/Http/Controllers/EventRegistrationController.php)
+- [app/Services/Certificates/PdfmeCertificateRenderer.php](/mnt/c/laragon/www/esijil/app/Services/Certificates/PdfmeCertificateRenderer.php)
+- [app/Filament/Resources/Events](/mnt/c/laragon/www/esijil/app/Filament/Resources/Events)
+- [app/Filament/Resources/CertificateTemplates](/mnt/c/laragon/www/esijil/app/Filament/Resources/CertificateTemplates)

@@ -2,10 +2,12 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\CertificatePdfRenderer;
 use App\Mail\TestApplicationSettingsMail;
 use App\Models\Registration;
 use App\Notifications\RegistrationSubmitted;
 use App\Services\Mail\MailSettingsConfigurator;
+use App\Settings\CertificateSettings;
 use App\Settings\MailSettings;
 use App\Settings\NotificationSettings;
 use BackedEnum;
@@ -135,6 +137,18 @@ class ManageApplicationSettings extends SettingsPage
                         Tab::make('General')
                             ->icon(Heroicon::OutlinedAdjustmentsHorizontal)
                             ->schema([
+                                Section::make('Certificates')
+                                    ->description('Choose how downloaded certificates are rendered across the application.')
+                                    ->schema([
+                                        Select::make('renderer')
+                                            ->label('Certificate PDF Renderer')
+                                            ->options(CertificatePdfRenderer::options())
+                                            ->default(CertificatePdfRenderer::Dompdf->value)
+                                            ->helperText('pdfme matches the designer output but requires Node.js on the server. Dompdf is more portable but can differ from the designer preview.')
+                                            ->native(false)
+                                            ->required(),
+                                    ])
+                                    ->columnSpanFull(),
                                 Section::make('Coming Soon')
                                     ->description('Use this page as the single home for app-wide configuration.')
                                     ->schema([
@@ -178,12 +192,19 @@ class ManageApplicationSettings extends SettingsPage
     {
         return [
             ...$data,
+            ...app(CertificateSettings::class)->toArray(),
             ...app(NotificationSettings::class)->toArray(),
         ];
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $certificateSettings = app(CertificateSettings::class);
+        $certificateSettings->fill(Arr::only($data, [
+            'renderer',
+        ]));
+        $certificateSettings->save();
+
         $notificationSettings = app(NotificationSettings::class);
         $notificationSettings->fill(Arr::only($data, [
             'registration_submitted_enabled',
@@ -191,6 +212,7 @@ class ManageApplicationSettings extends SettingsPage
         $notificationSettings->save();
 
         return Arr::except($data, [
+            'renderer',
             'registration_submitted_enabled',
         ]);
     }

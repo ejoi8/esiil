@@ -2,10 +2,12 @@
 
 namespace App\Services\Certificates;
 
+use App\Enums\CertificatePdfRenderer;
 use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Models\CertificateTemplate;
 use App\Models\Registration;
+use App\Settings\CertificateSettings;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use FontLib\Font;
@@ -23,6 +25,8 @@ class PdfmeCertificateRenderer
         protected PdfmeTemplateFactory $templateFactory,
         protected PdfmeTemplateLegacyAssetInliner $legacyAssetInliner,
         protected PdfmeFontRegistry $fontRegistry,
+        protected PdfmeNodeCertificateGenerator $pdfmeGenerator,
+        protected CertificateSettings $certificateSettings,
     ) {}
 
     public function render(Registration $registration): string
@@ -243,6 +247,11 @@ class PdfmeCertificateRenderer
     protected function generatePdf(array $template, array $inputs): string
     {
         $template = $this->fontRegistry->normalizeTemplate($template);
+
+        if ($this->selectedRenderer() === CertificatePdfRenderer::Pdfme) {
+            return $this->pdfmeGenerator->generate($template, $inputs);
+        }
+
         $pageSize = $this->dompdfPageSize($template);
 
         $html = view('certificates.pdfme-dompdf', [
@@ -257,6 +266,12 @@ class PdfmeCertificateRenderer
         $dompdf->render();
 
         return $dompdf->output();
+    }
+
+    protected function selectedRenderer(): CertificatePdfRenderer
+    {
+        return CertificatePdfRenderer::fromMixed($this->certificateSettings->renderer)
+            ?? CertificatePdfRenderer::Dompdf;
     }
 
     protected function dompdfOptions(): Options

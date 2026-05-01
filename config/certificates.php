@@ -2,6 +2,7 @@
 
 return [
     'pdfme' => [
+        'node_binary' => env('CERTIFICATE_PDFME_NODE_BINARY', 'node'),
         'fonts' => [
             'CormorantGaramond' => [
                 'path' => public_path('fonts/certificates/CormorantGaramond-Regular.ttf'),

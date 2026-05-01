@@ -1,5 +1,6 @@
 <?php
 
+use App\Settings\CertificateSettings;
 use App\Settings\MailSettings;
 use App\Settings\NotificationSettings;
 use Spatie\LaravelData\Data;
@@ -16,6 +17,7 @@ return [
      * put them (manually) here.
      */
     'settings' => [
+        CertificateSettings::class,
         MailSettings::class,
         NotificationSettings::class,
     ],

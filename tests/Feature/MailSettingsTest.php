@@ -1,11 +1,13 @@
 <?php
 
+use App\Enums\CertificatePdfRenderer;
 use App\Filament\Pages\ManageApplicationSettings;
 use App\Mail\TestApplicationSettingsMail;
 use App\Models\Registration;
 use App\Models\User;
 use App\Notifications\RegistrationSubmitted;
 use App\Providers\AppServiceProvider;
+use App\Settings\CertificateSettings;
 use App\Settings\MailSettings;
 use App\Settings\NotificationSettings;
 use Filament\Actions\Testing\TestAction;
@@ -53,6 +55,22 @@ it('saves smtp settings from the filament settings page', function () {
     expect($notificationSettings->registration_submitted_enabled)->toBeFalse();
 });
 
+it('saves certificate renderer settings from the filament settings page', function () {
+    $this->actingAs(User::factory()->create());
+
+    Livewire::test(ManageApplicationSettings::class)
+        ->fillForm([
+            'renderer' => CertificatePdfRenderer::Pdfme->value,
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $settings = app(CertificateSettings::class);
+    $settings->refresh();
+
+    expect($settings->renderer)->toBe(CertificatePdfRenderer::Pdfme->value);
+});
+
 it('renders application settings with tabbed sections', function () {
     $this->actingAs(User::factory()->create());
 
@@ -62,6 +80,7 @@ it('renders application settings with tabbed sections', function () {
         ->assertSee('Email')
         ->assertSee('General')
         ->assertSee('Notifications')
+        ->assertSee('Certificate PDF Renderer')
         ->assertSee('Send registration confirmation');
 });
 

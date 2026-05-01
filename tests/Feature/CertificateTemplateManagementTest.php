@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\CertificatePdfRenderer;
 use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Filament\Resources\CertificateTemplates\CertificateTemplateResource;
@@ -14,9 +15,11 @@ use App\Models\Registration;
 use App\Models\User;
 use App\Services\Certificates\PdfmeCertificateRenderer;
 use App\Services\Certificates\PdfmeFontRegistry;
+use App\Services\Certificates\PdfmeNodeCertificateGenerator;
 use App\Services\Certificates\PdfmeTemplateFactory;
 use App\Services\Certificates\PdfmeTemplateLegacyAssetInliner;
 use App\Services\Certificates\RegistrationCertificateIssuer;
+use App\Settings\CertificateSettings;
 use Database\Seeders\CertificateTemplateSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -462,6 +465,30 @@ it('refreshes a linked issued certificate when the designer layout changes', fun
         ->and($renderer->usesCurrentTemplate($registration))->toBeTrue()
         ->and($titleField)->toBeArray()
         ->and($titleField['content'])->toBe('NEW DESIGNER TITLE');
+});
+
+it('uses the configured pdfme generator when the certificate renderer is set to pdfme', function () {
+    $template = CertificateTemplate::factory()->create([
+        'type' => 'participation_certificate',
+    ]);
+    $event = Event::factory()->for($template, 'certificateTemplate')->create([
+        'certificate_type' => 'participation_certificate',
+    ]);
+    $registration = Registration::factory()->for($event)->create([
+        'certificate_type' => 'participation_certificate',
+    ]);
+
+    $settings = app(CertificateSettings::class);
+    $settings->renderer = CertificatePdfRenderer::Pdfme->value;
+    $settings->save();
+
+    $this->mock(PdfmeNodeCertificateGenerator::class)
+        ->shouldReceive('generate')
+        ->once()
+        ->andReturn('%PDF-pdfme');
+
+    expect(app(PdfmeCertificateRenderer::class)->render($registration))
+        ->toBe('%PDF-pdfme');
 });
 
 it('refreshes an issued certificate when the event switches to a newer default template', function () {

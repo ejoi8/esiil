@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Enums\EventStatus;
 use App\Models\CertificateTemplate;
@@ -45,7 +44,6 @@ class EventFactory extends Factory
             'certificate_template_id' => CertificateTemplate::factory()->state([
                 'type' => $certificateType,
             ]),
-            'certificate_template_update_mode' => CertificateTemplateUpdateMode::UseLatestTemplate,
             'created_by' => User::factory(),
         ];
     }

@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Events\Schemas;
 
-use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Enums\EventStatus;
 use App\Models\Event;
@@ -69,15 +68,6 @@ class EventInfolist
                             ->label('Template Key')
                             ->copyable()
                             ->placeholder('-'),
-                        TextEntry::make('certificate_template_update_mode')
-                            ->label('Template Update Mode')
-                            ->badge()
-                            ->color(fn (mixed $state): string => match (CertificateTemplateUpdateMode::fromMixed($state)) {
-                                CertificateTemplateUpdateMode::UseLatestTemplate => 'info',
-                                CertificateTemplateUpdateMode::LockIssuedSnapshot => 'warning',
-                                default => 'gray',
-                            })
-                            ->formatStateUsing(fn (mixed $state): string => CertificateTemplateUpdateMode::labelFor($state)),
                     ])
                     ->columns(1)
                     ->columnSpan(4),

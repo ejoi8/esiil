@@ -133,11 +133,11 @@ it('updates event status from the events table inline select column', function (
     expect($event->refresh()->status)->toBe(EventStatus::Published);
 });
 
-it('explains certificate template update modes on the event create page', function () {
+it('shows certificate template guidance on the event create page', function () {
     $this->actingAs(User::factory()->create());
 
     Livewire::test(CreateEvent::class)
         ->assertSuccessful()
-        ->assertSee('Use latest template: certificate downloads follow the event’s current template.')
-        ->assertSee('Lock issued snapshot: certificate downloads always use the issued snapshot.');
+        ->assertSee('Only templates matching the selected certificate type are available.')
+        ->assertSee('Filled automatically from the selected template.');
 });

@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\CertificatePdfRenderer;
-use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Filament\Resources\CertificateTemplates\CertificateTemplateResource;
 use App\Filament\Resources\CertificateTemplates\Pages\CreateCertificateTemplate;
@@ -38,7 +37,6 @@ it('assigns default templates to legacy-style events and registrations during se
         'certificate_type' => null,
         'certificate_template_id' => null,
         'certificate_template_key' => null,
-        'certificate_template_snapshot' => null,
     ]);
 
     $this->seed(CertificateTemplateSeeder::class);
@@ -66,7 +64,6 @@ it('assigns default templates to legacy-style events and registrations during se
         ->and($event->template_key)->toBe('default-participation')
         ->and($registration->certificate_template_id)->not->toBeNull()
         ->and($registration->certificate_template_key)->toBe('default-participation')
-        ->and($registration->certificate_template_snapshot)->toBeNull()
         ->and($event->certificateTemplate?->pdfme_template)->toEqual($seededParticipationTemplate)
         ->and($attendanceTemplate->pdfme_template)->toEqual($expectedAttendanceTemplate)
         ->and($attendanceTemplate->schema)->toEqual(array_replace($event->certificateTemplate->schema ?? [], [
@@ -76,7 +73,7 @@ it('assigns default templates to legacy-style events and registrations during se
         ->and($attendanceTitleField['content'])->toBe('Slip Kehadiran');
 });
 
-it('preserves the issued certificate snapshot when a participant downloads a certificate', function () {
+it('uses the current event template when a participant downloads a certificate', function () {
     $template = CertificateTemplate::factory()->create([
         'key' => 'seminar-kesihatan',
         'type' => 'participation_certificate',
@@ -108,18 +105,9 @@ it('preserves the issued certificate snapshot when a participant downloads a cer
     ]);
 
     $registration = Registration::factory()->for($participant)->for($event)->create();
-    $staleTemplate = app(PdfmeTemplateFactory::class)->fromSchema([
-        'title' => 'TEMPLATE LAMA',
-        'subtitle' => 'Dengan ini disahkan bahawa',
-        'body_intro' => 'telah menyertai program berikut',
-        'organizer_heading' => 'ANJURAN',
-        'signature_name' => 'Pengarah Lama',
-        'signature_title' => 'Pengarah Program Lama',
-    ]);
     $registration->forceFill([
         'certificate_template_id' => null,
         'certificate_template_key' => null,
-        'certificate_template_snapshot' => $staleTemplate,
         'certificate_type' => 'participation_certificate',
         'certificate_metadata' => null,
     ])->save();
@@ -133,26 +121,23 @@ it('preserves the issued certificate snapshot when a participant downloads a cer
         ->assertHeader('content-type', 'application/pdf');
 
     $registration->refresh();
-    $titleField = collect($registration->certificate_template_snapshot['schemas'][0] ?? [])
+    $resolvedTemplate = app(PdfmeCertificateRenderer::class)->templateForCertificateTemplate($template->fresh());
+    $titleField = collect($resolvedTemplate['schemas'][0] ?? [])
         ->firstWhere('name', 'certificate_title');
-    $participantField = collect($registration->certificate_template_snapshot['schemas'][0] ?? [])
+    $participantField = collect($resolvedTemplate['schemas'][0] ?? [])
         ->firstWhere('name', 'participant_name');
-    $signatureField = collect($registration->certificate_template_snapshot['schemas'][0] ?? [])
+    $signatureField = collect($resolvedTemplate['schemas'][0] ?? [])
         ->firstWhere('name', 'signature_name');
 
-    expect($registration->certificate_template_id)->toBeNull()
-        ->and($registration->certificate_template_key)->toBeNull()
-        ->and($registration->certificate_template_snapshot)->toBeArray()
-        ->and($registration->certificate_template_snapshot)->toHaveKeys(['basePdf', 'schemas'])
+    expect($registration->certificate_template_id)->toBe($template->id)
+        ->and($registration->certificate_template_key)->toBe($template->key)
         ->and($titleField)->toBeArray()
-        ->and($titleField['content'])->toBe('TEMPLATE LAMA')
+        ->and($titleField['content'])->toBe('SIJIL PROGRAM KESIHATAN')
         ->and($participantField)->toBeArray()
         ->and($participantField['fontName'])->toBe(PdfmeFontRegistry::BODY_FONT)
         ->and($signatureField)->toBeArray()
-        ->and($signatureField['content'])->toBe('Pengarah Lama')
-        ->and($registration->certificate_metadata)->toBeArray()
-        ->and(data_get($registration->certificate_metadata, 'template_schema_snapshot.title'))->toBe('SIJIL PROGRAM KESIHATAN')
-        ->and(data_get($registration->certificate_metadata, 'template_schema_snapshot.signature_name'))->toBe('');
+        ->and($signatureField['content'])->toBe('')
+        ->and($registration->certificate_metadata)->toBeNull();
 });
 
 it('rejects event templates that do not match the selected event certificate type', function () {
@@ -410,11 +395,11 @@ it('issues public registration certificates from the current designer layout', f
     $registration = Registration::factory()->for($event)->create();
 
     $registration = app(RegistrationCertificateIssuer::class)->issueFor($registration);
-    $titleField = collect($registration->certificate_template_snapshot['schemas'][0] ?? [])
+    $titleField = collect(app(PdfmeCertificateRenderer::class)->templateForCertificateTemplate($template)['schemas'][0] ?? [])
         ->firstWhere('name', 'certificate_title');
 
     expect($registration->certificate_template_id)->toBe($template->id)
-        ->and($registration->certificate_template_snapshot)->toBe($template->pdfme_template)
+        ->and($registration->certificate_template_key)->toBe($template->key)
         ->and($titleField)->toBeArray()
         ->and($titleField['content'])->toBe('DESIGNER PARTICIPATION TITLE');
 });
@@ -445,7 +430,6 @@ it('refreshes a linked issued certificate when the designer layout changes', fun
         'certificate_type' => 'participation_certificate',
         'certificate_template_id' => $template->id,
         'certificate_template_key' => $template->key,
-        'certificate_template_snapshot' => $oldTemplate,
     ]);
 
     $template->forceFill([
@@ -453,16 +437,11 @@ it('refreshes a linked issued certificate when the designer layout changes', fun
     ])->save();
 
     $renderer = app(PdfmeCertificateRenderer::class);
-
-    expect($renderer->usesCurrentTemplate($registration->refresh()))->toBeFalse();
-
     $pdf = $renderer->render($registration);
-
-    $titleField = collect($registration->refresh()->certificate_template_snapshot['schemas'][0] ?? [])
+    $titleField = collect($renderer->templateForCertificateTemplate($template->fresh())['schemas'][0] ?? [])
         ->firstWhere('name', 'certificate_title');
 
     expect($pdf)->toStartWith('%PDF')
-        ->and($renderer->usesCurrentTemplate($registration))->toBeTrue()
         ->and($titleField)->toBeArray()
         ->and($titleField['content'])->toBe('NEW DESIGNER TITLE');
 });
@@ -521,7 +500,6 @@ it('refreshes an issued certificate when the event switches to a newer default t
         'certificate_type' => 'participation_certificate',
         'certificate_template_id' => $originalTemplate->id,
         'certificate_template_key' => $originalTemplate->key,
-        'certificate_template_snapshot' => $oldTemplate,
     ]);
 
     $event->forceFill([
@@ -530,18 +508,13 @@ it('refreshes an issued certificate when the event switches to a newer default t
     ])->save();
 
     $renderer = app(PdfmeCertificateRenderer::class);
-
-    expect($renderer->usesCurrentTemplate($registration->refresh()))->toBeFalse();
-
     $pdf = $renderer->render($registration);
-
-    $titleField = collect($registration->refresh()->certificate_template_snapshot['schemas'][0] ?? [])
+    $titleField = collect($renderer->templateForCertificateTemplate($replacementTemplate->fresh())['schemas'][0] ?? [])
         ->firstWhere('name', 'certificate_title');
 
     expect($pdf)->toStartWith('%PDF')
-        ->and($registration->certificate_template_id)->toBe($replacementTemplate->id)
+        ->and($registration->refresh()->certificate_template_id)->toBe($replacementTemplate->id)
         ->and($registration->certificate_template_key)->toBe($replacementTemplate->key)
-        ->and($renderer->usesCurrentTemplate($registration))->toBeTrue()
         ->and($titleField)->toBeArray()
         ->and($titleField['content'])->toBe('NEW SWITCH TITLE');
 });
@@ -572,7 +545,6 @@ it('refreshes an issued certificate from the event default template when the des
         'certificate_type' => 'participation_certificate',
         'certificate_template_id' => null,
         'certificate_template_key' => $template->key,
-        'certificate_template_snapshot' => $oldTemplate,
     ]);
 
     $template->forceFill([
@@ -580,30 +552,19 @@ it('refreshes an issued certificate from the event default template when the des
     ])->save();
 
     $renderer = app(PdfmeCertificateRenderer::class);
-
-    expect($renderer->usesCurrentTemplate($registration->refresh()))->toBeFalse();
-
     $pdf = $renderer->render($registration);
-
-    $titleField = collect($registration->refresh()->certificate_template_snapshot['schemas'][0] ?? [])
+    $titleField = collect($renderer->templateForCertificateTemplate($template->fresh())['schemas'][0] ?? [])
         ->firstWhere('name', 'certificate_title');
 
     expect($pdf)->toStartWith('%PDF')
-        ->and($registration->certificate_template_id)->toBe($template->id)
-        ->and($renderer->usesCurrentTemplate($registration))->toBeTrue()
+        ->and($registration->refresh()->certificate_template_id)->toBe($template->id)
         ->and($titleField)->toBeArray()
         ->and($titleField['content'])->toBe('NEW EVENT DEFAULT TITLE');
 });
 
-it('keeps the issued certificate snapshot when the event locks snapshots', function () {
-    $oldTemplate = app(PdfmeTemplateFactory::class)->fromSchema([
-        'title' => 'LOCKED OLD TITLE',
-        'subtitle' => 'Dengan ini disahkan bahawa',
-        'body_intro' => 'telah menyertai program berikut',
-        'organizer_heading' => 'ANJURAN',
-    ]);
-    $newTemplate = app(PdfmeTemplateFactory::class)->fromSchema([
-        'title' => 'SHOULD NOT BE USED',
+it('falls back to the registration-linked template when the event has no template', function () {
+    $linkedTemplate = app(PdfmeTemplateFactory::class)->fromSchema([
+        'title' => 'LINKED TEMPLATE TITLE',
         'subtitle' => 'Dengan ini disahkan bahawa',
         'body_intro' => 'telah menyertai program berikut',
         'organizer_heading' => 'ANJURAN',
@@ -611,30 +572,48 @@ it('keeps the issued certificate snapshot when the event locks snapshots', funct
 
     $template = CertificateTemplate::factory()->create([
         'type' => 'participation_certificate',
-        'pdfme_template' => $oldTemplate,
+        'pdfme_template' => $linkedTemplate,
+    ]);
+    $event = Event::factory()->create([
+        'certificate_type' => 'participation_certificate',
+        'certificate_template_id' => null,
+        'template_key' => null,
+    ]);
+    $registration = Registration::factory()->for($event)->create([
+        'certificate_template_id' => $template->id,
+        'certificate_template_key' => $template->key,
+        'certificate_type' => 'participation_certificate',
+    ]);
+
+    $renderer = app(PdfmeCertificateRenderer::class);
+    $pdf = $renderer->render($registration);
+    $titleField = collect($renderer->templateForCertificateTemplate($template->fresh())['schemas'][0] ?? [])
+        ->firstWhere('name', 'certificate_title');
+
+    expect($pdf)->toStartWith('%PDF')
+        ->and($registration->refresh()->certificate_template_id)->toBe($template->id)
+        ->and($registration->certificate_template_key)->toBe($template->key)
+        ->and($titleField)->toBeArray()
+        ->and($titleField['content'])->toBe('LINKED TEMPLATE TITLE');
+});
+
+it('does not add template snapshot metadata when issuing a certificate', function () {
+    $template = CertificateTemplate::factory()->create([
+        'type' => 'participation_certificate',
     ]);
     $event = Event::factory()->for($template, 'certificateTemplate')->create([
         'certificate_type' => 'participation_certificate',
-        'certificate_template_update_mode' => CertificateTemplateUpdateMode::LockIssuedSnapshot,
+        'template_key' => $template->key,
     ]);
-    $registration = Registration::factory()->for($event)->create();
-    $registration->forceFill([
-        'certificate_type' => 'participation_certificate',
-        'certificate_template_id' => $template->id,
-        'certificate_template_snapshot' => $oldTemplate,
-    ])->save();
+    $registration = Registration::factory()->for($event)->create([
+        'certificate_metadata' => null,
+    ]);
 
-    $template->forceFill([
-        'pdfme_template' => $newTemplate,
-    ])->save();
+    $registration = app(RegistrationCertificateIssuer::class)->issueFor($registration);
 
-    app(PdfmeCertificateRenderer::class)->render($registration);
-
-    $titleField = collect($registration->refresh()->certificate_template_snapshot['schemas'][0] ?? [])
-        ->firstWhere('name', 'certificate_title');
-
-    expect($titleField)->toBeArray()
-        ->and($titleField['content'])->toBe('LOCKED OLD TITLE');
+    expect($registration->certificate_metadata)->toBeArray()
+        ->and(data_get($registration->certificate_metadata, 'source'))->toBe('public_form')
+        ->and(data_get($registration->certificate_metadata, 'template_schema_snapshot'))->toBeNull();
 });
 
 it('uses dompdf-safe text styles that stay closer to the pdfme designer output', function () {

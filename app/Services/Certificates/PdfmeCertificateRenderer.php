@@ -3,7 +3,6 @@
 namespace App\Services\Certificates;
 
 use App\Enums\CertificatePdfRenderer;
-use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Models\CertificateTemplate;
 use App\Models\Registration;
@@ -56,76 +55,21 @@ class PdfmeCertificateRenderer
      */
     protected function resolveTemplate(Registration $registration): array
     {
-        $currentTemplate = $this->currentTemplateForRegistration($registration);
-
-        if ($currentTemplate !== null && $registration->certificate_template_snapshot != $currentTemplate) {
-            $certificateTemplate = $this->currentCertificateTemplateForRegistration($registration);
-
-            $registration->forceFill([
-                'certificate_template_id' => $certificateTemplate?->id,
-                'certificate_template_key' => $certificateTemplate?->key,
-                'certificate_template_snapshot' => $currentTemplate,
-                'certificate_metadata' => $this->withTemplateSchemaSnapshot(
-                    $registration,
-                    $certificateTemplate?->resolvedSchema() ?? CertificateTemplate::DEFAULT_SCHEMA,
-                ),
-            ])->save();
-
-            return $currentTemplate;
-        }
-
-        if ($this->isPdfmeTemplate($registration->certificate_template_snapshot)) {
-            $this->persistTemplateSchemaSnapshotIfMissing(
-                $registration,
-                $this->resolveCurrentTemplateSchema($registration),
-            );
-
-            /** @var array<string, mixed> $template */
-            $template = $registration->certificate_template_snapshot;
-
-            return $template;
-        }
-
-        if (is_array($registration->certificate_template_snapshot)) {
-            $schemaSnapshot = array_replace(CertificateTemplate::DEFAULT_SCHEMA, $registration->certificate_template_snapshot);
-            $convertedTemplate = $this->templateFactory->fromSchema($registration->certificate_template_snapshot);
-
-            $registration->forceFill([
-                'certificate_template_snapshot' => $convertedTemplate,
-                'certificate_metadata' => $this->withTemplateSchemaSnapshot($registration, $schemaSnapshot),
-            ])->save();
-
-            return $convertedTemplate;
-        }
-
-        $certificateTemplate = $registration->certificateTemplate ?? $registration->event?->certificateTemplate;
+        $certificateTemplate = $this->currentCertificateTemplateForRegistration($registration);
 
         if ($certificateTemplate !== null) {
-            $pdfmeTemplate = $this->templateFromCertificateTemplate($certificateTemplate);
-            $schemaSnapshot = $certificateTemplate->resolvedSchema();
+            if ($registration->certificate_template_id !== $certificateTemplate->id
+                || $registration->certificate_template_key !== $certificateTemplate->key) {
+                $registration->forceFill([
+                    'certificate_template_id' => $certificateTemplate->id,
+                    'certificate_template_key' => $certificateTemplate->key,
+                ])->save();
+            }
 
-            $registration->forceFill([
-                'certificate_template_id' => $certificateTemplate->id,
-                'certificate_template_key' => $certificateTemplate->key,
-                'certificate_template_snapshot' => $pdfmeTemplate,
-                'certificate_metadata' => $this->withTemplateSchemaSnapshot($registration, $schemaSnapshot),
-            ])->save();
-
-            return $pdfmeTemplate;
+            return $this->templateFromCertificateTemplate($certificateTemplate);
         }
 
         return $this->templateFactory->fromSchema(CertificateTemplate::DEFAULT_SCHEMA);
-    }
-
-    public function usesCurrentTemplate(Registration $registration): bool
-    {
-        $currentTemplate = $this->currentTemplateForRegistration($registration);
-
-        if ($currentTemplate === null) {
-            return true;
-        }
-
-        return $registration->certificate_template_snapshot == $currentTemplate;
     }
 
     /**
@@ -159,48 +103,8 @@ class PdfmeCertificateRenderer
      */
     protected function resolveCurrentTemplateSchema(Registration $registration): array
     {
-        $metadata = is_array($registration->certificate_metadata) ? $registration->certificate_metadata : [];
-        $schemaSnapshot = $metadata['template_schema_snapshot'] ?? null;
-
-        if (is_array($schemaSnapshot)) {
-            return array_replace(CertificateTemplate::DEFAULT_SCHEMA, $schemaSnapshot);
-        }
-
-        if (is_array($registration->certificate_template_snapshot) && ! $this->isPdfmeTemplate($registration->certificate_template_snapshot)) {
-            return array_replace(CertificateTemplate::DEFAULT_SCHEMA, $registration->certificate_template_snapshot);
-        }
-
-        return $registration->certificateTemplate?->resolvedSchema()
-            ?? $registration->event?->certificateTemplate?->resolvedSchema()
+        return $this->currentCertificateTemplateForRegistration($registration)?->resolvedSchema()
             ?? CertificateTemplate::DEFAULT_SCHEMA;
-    }
-
-    /**
-     * @param  array<string, mixed>  $schemaSnapshot
-     * @return array<string, mixed>
-     */
-    protected function withTemplateSchemaSnapshot(Registration $registration, array $schemaSnapshot): array
-    {
-        $metadata = is_array($registration->certificate_metadata) ? $registration->certificate_metadata : [];
-        $metadata['template_schema_snapshot'] = array_replace(CertificateTemplate::DEFAULT_SCHEMA, $schemaSnapshot);
-
-        return $metadata;
-    }
-
-    /**
-     * @param  array<string, mixed>  $schemaSnapshot
-     */
-    protected function persistTemplateSchemaSnapshotIfMissing(Registration $registration, array $schemaSnapshot): void
-    {
-        $metadata = is_array($registration->certificate_metadata) ? $registration->certificate_metadata : [];
-
-        if (is_array($metadata['template_schema_snapshot'] ?? null)) {
-            return;
-        }
-
-        $registration->forceFill([
-            'certificate_metadata' => $this->withTemplateSchemaSnapshot($registration, $schemaSnapshot),
-        ])->save();
     }
 
     /**
@@ -763,51 +667,11 @@ class PdfmeCertificateRenderer
         return $this->templateFromCertificateTemplate($certificateTemplate);
     }
 
-    /**
-     * @return array<string, mixed>|null
-     */
-    protected function currentTemplateForRegistration(Registration $registration): ?array
-    {
-        $registration->load('certificateTemplate', 'event.certificateTemplate');
-
-        if (! $this->shouldUseCurrentTemplate($registration)) {
-            return null;
-        }
-
-        $certificateTemplate = $this->currentCertificateTemplateForRegistration($registration);
-
-        if ($certificateTemplate === null) {
-            return null;
-        }
-
-        return $this->templateFromCertificateTemplate($certificateTemplate);
-    }
-
     protected function currentCertificateTemplateForRegistration(Registration $registration): ?CertificateTemplate
     {
         $registration->load('certificateTemplate', 'event.certificateTemplate');
 
-        $eventTemplate = $registration->event?->certificateTemplate;
-
-        if ($eventTemplate !== null && ! $this->hasDetachedSnapshotWithoutTemplateLink($registration)) {
-            return $eventTemplate;
-        }
-
-        return $registration->certificateTemplate;
-    }
-
-    protected function hasDetachedSnapshotWithoutTemplateLink(Registration $registration): bool
-    {
-        return $registration->certificate_template_snapshot !== null
-            && blank($registration->certificate_template_id)
-            && blank($registration->certificate_template_key);
-    }
-
-    protected function shouldUseCurrentTemplate(Registration $registration): bool
-    {
-        $mode = CertificateTemplateUpdateMode::fromMixed($registration->event?->certificate_template_update_mode);
-
-        return $mode !== CertificateTemplateUpdateMode::LockIssuedSnapshot;
+        return $registration->event?->certificateTemplate ?? $registration->certificateTemplate;
     }
 
     /**

@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Enums\EventStatus;
 use Database\Factories\EventFactory;
@@ -31,7 +30,6 @@ use Illuminate\Support\Facades\URL;
     'certificate_type',
     'template_key',
     'certificate_template_id',
-    'certificate_template_update_mode',
     'created_by',
 ])]
 class Event extends Model
@@ -48,7 +46,6 @@ class Event extends Model
             'registration_closes_at' => 'datetime',
             'status' => EventStatus::class,
             'certificate_type' => CertificateType::class,
-            'certificate_template_update_mode' => CertificateTemplateUpdateMode::class,
         ];
     }
 

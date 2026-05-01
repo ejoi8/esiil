@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Events\Tables;
 
-use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Enums\EventStatus;
 use App\Models\CertificateTemplate;
@@ -59,11 +58,6 @@ class EventsTable
                     ->label('Certificate Template')
                     ->searchable()
                     ->wrap()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('certificate_template_update_mode')
-                    ->label('Template Mode')
-                    ->badge()
-                    ->formatStateUsing(fn (mixed $state): string => CertificateTemplateUpdateMode::labelFor($state))
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('creator.name')
                     ->label('Created By')

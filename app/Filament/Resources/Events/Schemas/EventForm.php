@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Events\Schemas;
 
-use App\Enums\CertificateTemplateUpdateMode;
 use App\Enums\CertificateType;
 use App\Enums\EventStatus;
 use App\Models\CertificateTemplate;
@@ -148,14 +147,6 @@ class EventForm
                             ->maxLength(255)
                             ->readOnly()
                             ->helperText('Filled automatically from the selected template.'),
-                        Select::make('certificate_template_update_mode')
-                            ->label('Template Update Mode')
-                            ->options(CertificateTemplateUpdateMode::options())
-                            ->formatStateUsing(fn (mixed $state): ?string => CertificateTemplateUpdateMode::fromMixed($state)?->value)
-                            ->default(CertificateTemplateUpdateMode::UseLatestTemplate->value)
-                            ->helperText('Use latest template: certificate downloads follow the event’s current template. Lock issued snapshot: certificate downloads always use the issued snapshot.')
-                            ->required()
-                            ->columnSpanFull(),
                     ])
                     ->columns(2)
                     ->columnSpan(['default' => 'full', 'lg' => 7])

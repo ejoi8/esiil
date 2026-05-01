@@ -12,7 +12,9 @@ use App\Services\Certificates\RegistrationCertificateIssuer;
 use App\Services\Certificates\StoredCertificatePdf;
 use App\Settings\NotificationSettings;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EventRegistrationController extends Controller
@@ -43,26 +45,14 @@ class EventRegistrationController extends Controller
                 ]);
         }
 
-        $participant = Participant::query()->firstOrNew([
-            'nokp' => $request->nokp(),
-        ]);
+        [$participant, $registration] = DB::transaction(function () use ($request, $event, $certificateIssuer): array {
+            $participant = $this->resolveParticipant($request);
+            $registration = $this->resolveRegistration($event, $participant);
 
-        $participant->fill($request->participantData());
-        $participant->save();
+            $certificateIssuer->issueFor($registration);
 
-        $registration = Registration::query()->firstOrCreate(
-            [
-                'event_id' => $event->id,
-                'participant_id' => $participant->id,
-            ],
-            [
-                'registered_at' => now(),
-                'attendance_status' => 'registered',
-                'source' => 'public_form',
-            ],
-        );
-
-        $certificateIssuer->issueFor($registration);
+            return [$participant, $registration];
+        });
 
         if ($registration->wasRecentlyCreated && $notificationSettings->registration_submitted_enabled) {
             $participant->notify(new RegistrationSubmitted($registration));
@@ -118,5 +108,91 @@ class EventRegistrationController extends Controller
     protected function abortUnlessAuthorizedRegistrationSession(Registration $registration): void
     {
         abort_unless(session('event_registration_success_id') === $registration->id, 403);
+    }
+
+    protected function resolveParticipant(StoreEventRegistrationRequest $request): Participant
+    {
+        $participant = Participant::withTrashed()
+            ->where('nokp', $request->nokp())
+            ->first();
+
+        if ($participant !== null) {
+            if ($participant->trashed()) {
+                $participant->restore();
+            }
+
+            $participant->fill($request->participantData());
+            $participant->save();
+
+            return $participant;
+        }
+
+        try {
+            return Participant::query()->create($request->participantData());
+        } catch (QueryException $exception) {
+            if (! $this->isUniqueConstraintViolation($exception)) {
+                throw $exception;
+            }
+
+            $participant = Participant::withTrashed()
+                ->where('nokp', $request->nokp())
+                ->firstOrFail();
+
+            if ($participant->trashed()) {
+                $participant->restore();
+            }
+
+            $participant->fill($request->participantData());
+            $participant->save();
+
+            return $participant;
+        }
+    }
+
+    protected function resolveRegistration(Event $event, Participant $participant): Registration
+    {
+        $registration = Registration::withTrashed()
+            ->where('event_id', $event->id)
+            ->where('participant_id', $participant->id)
+            ->first();
+
+        if ($registration !== null) {
+            if ($registration->trashed()) {
+                $registration->restore();
+            }
+
+            return $registration;
+        }
+
+        try {
+            return Registration::query()->create([
+                'event_id' => $event->id,
+                'participant_id' => $participant->id,
+                'registered_at' => now(),
+                'attendance_status' => 'registered',
+                'source' => 'public_form',
+            ]);
+        } catch (QueryException $exception) {
+            if (! $this->isUniqueConstraintViolation($exception)) {
+                throw $exception;
+            }
+
+            $registration = Registration::withTrashed()
+                ->where('event_id', $event->id)
+                ->where('participant_id', $participant->id)
+                ->firstOrFail();
+
+            if ($registration->trashed()) {
+                $registration->restore();
+            }
+
+            return $registration;
+        }
+    }
+
+    protected function isUniqueConstraintViolation(QueryException $exception): bool
+    {
+        return in_array((string) $exception->getCode(), ['23000', '23505'], true)
+            || (($exception->errorInfo[1] ?? null) === 1062);
     }
 }

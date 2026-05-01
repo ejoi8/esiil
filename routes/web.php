@@ -18,7 +18,9 @@ Route::get('/certificates/{registration}/download', [CertificateLookupController
 
 Route::middleware('signed')->group(function (): void {
     Route::get('/events/{event}/register', [EventRegistrationController::class, 'show'])->name('events.register.show');
-    Route::post('/events/{event}/register', [EventRegistrationController::class, 'store'])->name('events.register.store');
+    Route::post('/events/{event}/register', [EventRegistrationController::class, 'store'])
+        ->middleware('throttle:event-registration')
+        ->name('events.register.store');
 });
 
 Route::get('/registrations/{registration}/success', [EventRegistrationController::class, 'success'])->name('events.register.success');

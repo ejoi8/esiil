@@ -4,7 +4,6 @@ namespace App\Services\Certificates;
 
 use App\Enums\CertificateType;
 use App\Models\Registration;
-use Illuminate\Support\Str;
 
 class RegistrationCertificateIssuer
 {
@@ -19,7 +18,6 @@ class RegistrationCertificateIssuer
             'certificate_type' => $type,
             'certificate_template_id' => $event->certificate_template_id,
             'certificate_template_key' => $event->template_key ?: $type->templateKey(),
-            'cert_serial_number' => $registration->cert_serial_number ?: $this->serialNumber(),
             'certificate_metadata' => array_replace(
                 is_array($registration->certificate_metadata) ? $registration->certificate_metadata : [],
                 [
@@ -29,14 +27,5 @@ class RegistrationCertificateIssuer
         ])->save();
 
         return $registration;
-    }
-
-    protected function serialNumber(): string
-    {
-        do {
-            $serialNumber = strtoupper(Str::random(12));
-        } while (Registration::query()->where('cert_serial_number', $serialNumber)->exists());
-
-        return $serialNumber;
     }
 }

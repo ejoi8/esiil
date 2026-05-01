@@ -104,7 +104,7 @@
                     @endif
                 </div>
 
-                <form action="{{ request()->fullUrl() }}" method="POST" class="space-y-6">
+                <form action="{{ request()->fullUrl() }}" method="POST" class="space-y-6" data-registration-form>
                     @csrf
 
                     <div class="grid min-w-0 gap-4 sm:grid-cols-2">
@@ -199,13 +199,38 @@
                         <button
                             type="submit"
                             @disabled(! $registrationIsOpen)
+                            data-submit-button
                             class="inline-flex items-center justify-center rounded-full bg-primary px-6 py-3.5 text-sm font-bold uppercase tracking-[0.16em] text-white shadow-lg shadow-primary/20 transition hover:bg-text focus:outline-none focus:ring-4 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-text/10 disabled:text-text/65 disabled:shadow-none"
                         >
-                            Hantar Pendaftaran
+                            <span data-submit-label>Hantar Pendaftaran</span>
                         </button>
                     </div>
                 </form>
             </div>
         </section>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.querySelector('[data-registration-form]');
+            const submitButton = form?.querySelector('[data-submit-button]');
+            const submitLabel = submitButton?.querySelector('[data-submit-label]');
+
+            if (! form || ! submitButton || ! submitLabel) {
+                return;
+            }
+
+            form.addEventListener('submit', (event) => {
+                if (submitButton.disabled) {
+                    event.preventDefault();
+
+                    return;
+                }
+
+                submitButton.disabled = true;
+                submitButton.setAttribute('aria-disabled', 'true');
+                submitLabel.textContent = 'Sedang Dihantar...';
+            });
+        });
+    </script>
 </x-layouts.public>

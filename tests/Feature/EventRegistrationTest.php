@@ -13,6 +13,7 @@ use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\RateLimiter;
 
 uses(RefreshDatabase::class);
 
@@ -52,6 +53,9 @@ it('shows the public registration form without the membership notes field', func
     $this->get($event->publicRegistrationUrl())
         ->assertSuccessful()
         ->assertSee('Hantar Pendaftaran')
+        ->assertSee('Sedang Dihantar...')
+        ->assertSee('data-registration-form', false)
+        ->assertSee('data-submit-button', false)
         ->assertDontSee('name="membership_notes"', false)
         ->assertDontSee('Catatan');
 });
@@ -101,6 +105,7 @@ it('registers a participant for a published event', function () {
     $this->assertDatabaseHas(Registration::class, [
         'id' => $registration->id,
         'certificate_type' => $event->certificate_type->value,
+        'cert_serial_number' => null,
     ]);
 
     Notification::assertSentTo(
@@ -181,6 +186,31 @@ it('does not create duplicate registrations for the same participant and event',
         ->count())->toBe(1);
 
     Notification::assertNotSentTo($participant, RegistrationSubmitted::class);
+});
+
+it('throttles repeated registration attempts for the same participant', function () {
+    $event = Event::factory()->create([
+        'status' => EventStatus::Published,
+        'registration_opens_at' => now()->subDay(),
+        'registration_closes_at' => now()->addDay(),
+    ]);
+    $url = $event->publicRegistrationUrl();
+    RateLimiter::clear('127.0.0.1|'.sha1($url.'|900101015555'));
+    $payload = [
+        'full_name' => 'Siti Puspanita',
+        'email' => 'siti@example.test',
+        'nokp' => '900101015555',
+        'phone' => '0123456789',
+        'membership_status' => 'member',
+    ];
+
+    foreach (range(1, 5) as $attempt) {
+        $this->post($url, $payload)
+            ->assertRedirect();
+    }
+
+    $this->post($url, $payload)
+        ->assertTooManyRequests();
 });
 
 it('does not send registration confirmation when disabled in application settings', function () {

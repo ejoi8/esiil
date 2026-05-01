@@ -31,6 +31,12 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('certificate-lookup', function (Request $request): Limit {
             return Limit::perMinute(5)->by($request->ip().'|'.sha1((string) $request->input('nokp')));
         });
+
+        RateLimiter::for('event-registration', function (Request $request): Limit {
+            return Limit::perMinute(5)->by(
+                $request->ip().'|'.sha1((string) $request->fullUrl().'|'.(string) $request->input('nokp')),
+            );
+        });
     }
 
     protected function configureMailSettings(): void

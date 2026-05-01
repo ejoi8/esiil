@@ -10,8 +10,10 @@ use App\Settings\CertificateSettings;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use FontLib\Font;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class PdfmeCertificateRenderer
 {
@@ -31,6 +33,7 @@ class PdfmeCertificateRenderer
     public function render(Registration $registration): string
     {
         $registration->load('certificateTemplate', 'event.certificateTemplate', 'participant');
+        $this->ensureCertificateSerialNumber($registration);
 
         $template = $this->resolveTemplate($registration);
         $variables = $this->buildVariables($registration);
@@ -672,6 +675,52 @@ class PdfmeCertificateRenderer
         $registration->load('certificateTemplate', 'event.certificateTemplate');
 
         return $registration->event?->certificateTemplate ?? $registration->certificateTemplate;
+    }
+
+    protected function ensureCertificateSerialNumber(Registration $registration): void
+    {
+        if (filled($registration->cert_serial_number)) {
+            return;
+        }
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $serialNumber = strtoupper(Str::random(12));
+
+            try {
+                $updatedRows = Registration::query()
+                    ->whereKey($registration->getKey())
+                    ->whereNull('cert_serial_number')
+                    ->update([
+                        'cert_serial_number' => $serialNumber,
+                    ]);
+            } catch (QueryException $exception) {
+                if (! $this->isUniqueConstraintViolation($exception)) {
+                    throw $exception;
+                }
+
+                continue;
+            }
+
+            if ($updatedRows === 1) {
+                $registration->cert_serial_number = $serialNumber;
+
+                return;
+            }
+
+            $registration->refresh();
+
+            if (filled($registration->cert_serial_number)) {
+                return;
+            }
+        }
+
+        throw new RuntimeException('Unable to generate a unique certificate serial number.');
+    }
+
+    protected function isUniqueConstraintViolation(QueryException $exception): bool
+    {
+        return in_array((string) $exception->getCode(), ['23000', '23505'], true)
+            || (($exception->errorInfo[1] ?? null) === 1062);
     }
 
     /**
